@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Heartfelt Messages</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bonheur+Royale&display=swap"
+      rel="stylesheet"
+    />
+
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Bonheur+Royale&display=swap");
+
+      body {
+        margin: 0;
+        overflow: hidden; /* Keep overflow hidden for the particle animation */
+      }
+
+      /* --- PULSE ANIMATION DEFINITION --- */
+      @keyframes gentle-pulse {
+        0% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(
+            1.1
+          ); /* Adjusted for a noticeable but not aggressive pulse */
+        }
+        100% {
+          transform: scale(1);
+        }
+      }
+
+      .pulse-animation {
+        animation: gentle-pulse 1.35s infinite ease-in-out; /* Apply the animation */
+      }
+
+      .message-overlay {
+        text-align: center;
+        color: white;
+        text-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+        width: 90%;
+        max-width: 600px;
+      }
+
+      #messageDisplay {
+        min-height: 50px;
+        transition: opacity 0.5s ease-in-out;
+        cursor: pointer;
+        margin-top: 1rem;
+        font-family: "Bonheur Royale", cursive; /* Use the custom font */
+      }
+
+      /* Ensure canvas does not block button clicks */
+      #heart {
+        pointer-events: none;
+      }
+      #generateMessageBtn {
+        z-index: 10;
+      }
+    </style>
+  </head>
+  <body class="m-0 bg-gray-400 text-pink-500 flex flex-col min-h-screen">
+    <audio id="background-song" autoplay loop muted>
+      <source src="happybirthdaysong.mp3" type="audio/mpeg" />
+      Your browser does not support the audio element.
+    </audio>
+    <div class="relative w-full" style="height: 50vh">
+      <canvas id="heart" class="absolute inset-0 w-full h-full"></canvas>
+    </div>
+
+    <div class="flex-grow flex items-center justify-center p-4 bg-pink-100">
+      <div class="message-overlay flex flex-col items-center justify-center">
+        <button
+          id="generateMessageBtn"
+          class="bg-sky-300 hover:bg-sky-400 text-white font-bold py-3 px-6 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-opacity-75 mb-4 pulse-animation cursor-pointer"
+        >
+          Chúc mừng sinh nhật Dì Ti! 🎉
+        </button>
+        <p
+          id="messageDisplay"
+          class="hidden text-xl md:text-2xl lg:text-3xl font-semibold italic max-w-xl p-4 bg-pink-400 bg-opacity-30 rounded-lg backdrop-blur-sm font-bonheur-royale"
+        ></p>
+        <div id="loadingIndicator" class="hidden mt-2 text-pink-4">
+          Generating...
+        </div>
+      </div>
+    </div>
+
+    <script id="auntbirthday.js">
+      const canvas = document.getElementById("heart");
+      const ctx = canvas.getContext("2d");
+
+      const generateMessageBtn = document.getElementById("generateMessageBtn");
+      const messageDisplay = document.getElementById("messageDisplay");
+      const loadingIndicator = document.getElementById("loadingIndicator");
+
+      const backgroundSong = document.getElementById("background-song");
+      backgroundSong.volume = 0.05;
+
+      let animationFrameId;
+      let particles = [];
+      const numParticles = 3000;
+      const heartScale = 14;
+      const particleSpeed = 0.8;
+      // particleTraceFactor is now used directly in the animate function
+      const particleTraceFactor = 0.8;
+
+      // --- Background color transition variables ---
+      let backgroundTransitionStartTime = null;
+      const backgroundTransitionDuration = 3000; // 3 seconds for the color transition
+
+      const startOklch = { L: 70.7, C: 0.022, H: 261.325 };
+      // Target color from your request
+      const endOklch = { L: 21, C: 0.006, H: 285.885 };
+      // --- END Background color transition variables ---
+      function resizeCanvas() {
+        const canvasContainer = canvas.parentElement;
+        canvas.width = canvasContainer.clientWidth;
+        canvas.height = canvasContainer.clientHeight;
+      }
+
+      window.addEventListener("resize", resizeCanvas);
+      resizeCanvas(); // Initial resize on load
+
+      function getHeartPoint(t) {
+        const x = 16 * Math.pow(Math.sin(t), 3);
+        const y =
+          13 * Math.cos(t) -
+          5 * Math.cos(2 * t) -
+          2 * Math.cos(3 * t) -
+          Math.cos(4 * t);
+        return {
+          x: x * heartScale,
+          y: -y * heartScale,
+        };
+      }
+
+      class Particle {
+        constructor() {
+          this.reset();
+        }
+
+        reset() {
+          this.x = canvas.width / 2;
+          this.y = canvas.height / 2;
+          this.targetT = Math.random() * Math.PI * 2;
+          this.color = `hsl(320 85.9% 53.9%)`; // Pink/magenta color for particles
+          this.radius = Math.random() * 1.5 + 1;
+          this.speed = particleSpeed * (Math.random() * 0.5 + 0.75);
+        }
+
+        update() {
+          const target = getHeartPoint(this.targetT);
+          const targetX = target.x + canvas.width / 2;
+          const targetY = target.y + canvas.height / 2;
+
+          const dx = targetX - this.x;
+          const dy = targetY - this.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+
+          if (distance < this.speed) {
+            this.x = targetX;
+            this.y = targetY;
+            this.targetT = Math.random() * Math.PI * 2;
+          } else {
+            this.x += (dx / distance) * this.speed;
+            this.y += (dy / distance) * this.speed;
+          }
+        }
+
+        draw(ctx) {
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+          ctx.fillStyle = this.color;
+          ctx.fill();
+        }
+      }
+
+      function initParticles() {
+        particles = [];
+        for (let i = 0; i < numParticles; i++) {
+          particles.push(new Particle());
+        }
+      }
+
+      // --- MODIFIED animate() function to handle background transition WITH trails ---
+      function animate(currentTime) {
+        if (!backgroundTransitionStartTime) {
+          backgroundTransitionStartTime = currentTime; // Initialize time on first call
+        }
+
+        const elapsed = currentTime - backgroundTransitionStartTime;
+        const progress = Math.min(elapsed / backgroundTransitionDuration, 1); // Progress from 0 to 1
+
+        const currentL = startOklch.L + (endOklch.L - startOklch.L) * progress;
+        const currentC = startOklch.C + (endOklch.C - startOklch.C) * progress;
+        const currentH = startOklch.H + (endOklch.H - startOklch.H) * progress;
+
+        ctx.fillStyle = `oklch(${currentL}% ${currentC} ${currentH} / ${particleTraceFactor})`;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // --- END MODIFICATION ---
+
+        particles.forEach((particle) => {
+          particle.update();
+          particle.draw(ctx);
+        });
+
+        animationFrameId = window.requestAnimationFrame(animate);
+      }
+
+      async function generateHeartfeltMessage() {
+        messageDisplay.textContent = "";
+        messageDisplay.classList.add("hidden");
+        loadingIndicator.classList.remove("hidden");
+
+        if (backgroundSong.muted) {
+          backgroundSong.muted = false; // Unmute
+          backgroundSong.play().catch((error) => {
+            console.error("Error playing audio on button click:", error);
+          });
+        }
+
+        const prompt =
+          "Tạo một lời chúc mừng sinh nhật dễ thương và ý nghĩa cho Dì Ti. Dì là mẫu người trẻ trung và năng động, và có công việc tốt đẹp, hiện đại. Tối đa 3 câu. Đầu câu đầu tiên có biểu tượng về bó hoa và sinh nhật. Nội dung nhẹ nhàng và tinh tế. Kết thúc với câu, Con yêu Dì Ti!";
+        let chatHistory = [];
+        chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+        const payload = { contents: chatHistory };
+        const apiKey = "AIzaSyAPrh3LXUqDTwzHyZWfUiB6qSbhf5TTMsE";
+
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+        try {
+          const response = await fetch(apiUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+
+          if (!response.ok) {
+            messageDisplay.textContent = `Error: API request failed with status ${response.status}. Please try again.`;
+            messageDisplay.classList.remove("hidden");
+            console.error(
+              `API error: ${response.status} ${response.statusText}`
+            );
+          }
+
+          const result = await response.json();
+
+          if (
+            result.candidates &&
+            result.candidates.length > 0 &&
+            result.candidates[0].content &&
+            result.candidates[0].content.parts &&
+            result.candidates[0].content.parts.length > 0
+          ) {
+            const text = result.candidates[0].content.parts[0].text;
+            messageDisplay.textContent = text;
+            messageDisplay.classList.remove("hidden");
+            messageDisplay.addEventListener("click", resetMessageDisplay, {
+              once: true,
+            });
+          } else {
+            messageDisplay.textContent =
+              "Could not generate a message. Please try again.";
+            messageDisplay.classList.remove("hidden");
+            console.error("Gemini API response structure unexpected:", result);
+          }
+        } catch (error) {
+          messageDisplay.textContent =
+            "Error generating message. Check console for details.";
+          messageDisplay.classList.remove("hidden");
+          console.error("Error calling Gemini API:", error);
+        } finally {
+          loadingIndicator.classList.add("hidden");
+        }
+      }
+
+      function resetMessageDisplay() {
+        messageDisplay.textContent = "";
+        messageDisplay.classList.add("hidden");
+      }
+
+      generateMessageBtn.addEventListener("click", generateHeartfeltMessage);
+
+      window.onload = function () {
+        initParticles();
+        window.requestAnimationFrame(animate);
+      };
+    </script>
+  </body>
+</html>
